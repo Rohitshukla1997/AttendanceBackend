@@ -33,8 +33,8 @@ app.post('/data', (req, res) => {
 
 // Start server
 app.listen(port, async () => {
-    const key = Buffer.from(process.env.ENCRYPTION_KEY, "utf8");
-    console.log("Key Length (bytes):", key.length);
+    // const key = Buffer.from(process.env.ENCRYPTION_KEY, "utf8");
+    // console.log("Key Length (bytes):", key.length); // for see keyword bit size
     await connectDB();
     console.log(`Server is running on http://localhost:${port}`);
 });
