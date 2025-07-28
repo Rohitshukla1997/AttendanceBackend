@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const SuperAdmin = require('../Models/superAdminModel');
 const Admin = require('../Models/adminModel');
+const Employee = require('../Models/employeeModel');
 
 exports.authenticate = async (req, res, next) => {
     try {
@@ -18,6 +19,12 @@ exports.authenticate = async (req, res, next) => {
         }
         if (role === "Admin") {
             const user = await Admin.findById(decoded.id);
+            if (!user) return res.status(404).json({ message: "User not found" });
+            req.user = decoded;
+            return next();
+        }
+        if (role === "Employee") {
+            const user = await Employee.findById(decoded.id);
             if (!user) return res.status(404).json({ message: "User not found" });
             req.user = decoded;
             return next();

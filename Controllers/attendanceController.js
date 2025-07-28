@@ -7,7 +7,7 @@ const Leave = require("../Models/leaveModel");
 
 const markAttendanceByAdmin = async (req, res) => {
     try {
-        if (req.user.role !== 'Admin') {
+        if (req.user.role !== 'Admin' && req.user.role !== 'Employee') {
             return res.status(403).json({ message: 'Only Admin can mark attendance' });
         }
 
@@ -90,7 +90,7 @@ const editAttendanceByAdmin = async (req, res) => {
 };
 
 
-
+// all get montly attendance
 const getMonthlyAttendance = async (req, res) => {
     try {
         const { employeeId } = req.params;
@@ -107,98 +107,98 @@ const getMonthlyAttendance = async (req, res) => {
 
         const monthIndex = Number(month) - 1;
         const startDate = new Date(year, monthIndex, 1);
-        const endDate = new Date(year, monthIndex + 1, 0, 23, 59, 59); // end of month
+        const endDate = new Date(year, monthIndex + 1, 0, 23, 59, 59);
 
-        // ✅ Fetch Attendance
+        // Fetch attendance records
         const attendanceRecords = await Attendance.find({
             employeeId,
             date: { $gte: startDate, $lte: endDate },
         });
 
-        const statusMap = {};
+        const attendanceMap = {};
         attendanceRecords.forEach(record => {
-            const dateStr = record.date.toLocaleDateString('en-CA'); // yyyy-mm-dd
-            statusMap[dateStr] = record.status;
+            const dateStr = record.date.toISOString().split("T")[0];
+            attendanceMap[dateStr] = record.status;
         });
 
-        // ✅ Fetch Leave entries in the month
+        //  Fetch leave records (Pending/Approved only)
         const leaveRecords = await Leave.find({
             employeeId,
-            $or: [
-                { fromDate: { $lte: endDate }, toDate: { $gte: startDate } },
-                { fromDate: { $gte: startDate, $lte: endDate } },
-                { toDate: { $gte: startDate, $lte: endDate } },
-            ],
+            fromDate: { $lte: endDate },
+            toDate: { $gte: startDate },
+            status: { $in: ["Pending", "Approved"] },
         });
 
-        const leaveDatesSet = new Set();
+        const leaveMap = new Map(); // dateStr => "Pending" | "Approved"
         leaveRecords.forEach(leave => {
             const from = new Date(leave.fromDate);
             const to = new Date(leave.toDate);
-            for (
-                let d = new Date(from);
-                d <= to;
-                d.setDate(d.getDate() + 1)
-            ) {
-                const dateStr = new Date(d).toLocaleDateString('en-CA');
-                leaveDatesSet.add(dateStr);
+            for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+                const dateStr = d.toISOString().split("T")[0];
+                const time = d.getTime();
+                if (time >= startDate.getTime() && time <= endDate.getTime()) {
+                    leaveMap.set(dateStr, leave.status);
+                }
             }
         });
 
         const summary = {
             Present: 0,
             Absent: 0,
-            Leave: 0,
-            TotalDays: 0,
+            Approved: 0,
+            Pending: 0,
+            Holiday: 0,
         };
 
-        const fullMonthData = [];
-
+        const records = [];
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         const totalDays = new Date(year, monthIndex + 1, 0).getDate();
 
         for (let day = 1; day <= totalDays; day++) {
-            const current = new Date(year, monthIndex, day);
-            if (current > today) break;
+            const currentDate = new Date(year, monthIndex, day);
+            if (currentDate > today) break;
 
-            const dateStr = current.toLocaleDateString('en-CA');
+            const dateStr = currentDate.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
-            let status = statusMap[dateStr];
 
-            if (!status && leaveDatesSet.has(dateStr)) {
-                status = 'Leave'; // ✅ mark leave only if not already Present
+            //  Mark Sundays as "Holiday"
+            if (currentDate.getDay() === 0) {
+                records.push({ date: dateStr, status: "Holiday" });
+                summary.Holiday += 1;
+                continue;
             }
 
-            if (!status) {
-                status = 'Absent';
+            let status = "";
+
+            if (attendanceMap[dateStr] === "Present") {
+                status = "Present";
+                summary.Present += 1;
+            } else if (leaveMap.has(dateStr)) {
+                status = leaveMap.get(dateStr); // "Approved" or "Pending"
+                summary[status] += 1;
+            } else {
+                status = "Absent";
+                summary.Absent += 1;
             }
 
-            summary[status] += 1;
-
-            fullMonthData.push({
-                date: dateStr,
-                status,
-            });
+            records.push({ date: dateStr, status });
         }
-
-        summary.TotalDays = fullMonthData.length;
 
         res.status(200).json({
             employeeId,
             employeeName: employee.employeeName,
             month,
             year,
-            summary,
-            records: fullMonthData,
+            attendance: summary,
+            records,
         });
     } catch (error) {
-        console.error('Monthly Attendance Error:', error);
-        res.status(500).json({ message: 'Server error' });
+        console.error("Monthly Attendance Error:", error);
+        res.status(500).json({ message: "Server error" });
     }
 };
-
 
 
 // Make sure this is exported correctly

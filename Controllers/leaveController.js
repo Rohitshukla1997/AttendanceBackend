@@ -81,14 +81,151 @@ const deleteLeave = async (req, res) => {
 
         res.status(200).json({ message: 'Leave deleted' });
     } catch (err) {
+        const Leave = require('../Models/leaveModel');
+        const Employee = require('../Models/employeeModel');
+
+        // Employee Creates Leave
+        const createLeave = async (req, res) => {
+            try {
+                if (req.user.role !== 'Employee') {
+                    return res.status(403).json({ message: 'Only employees can request leave' });
+                }
+
+                const employeeId = req.user.id;
+                const { fromDate, toDate, description } = req.body;
+
+                const leave = await Leave.create({
+                    employeeId,
+                    fromDate: new Date(fromDate),
+                    toDate: new Date(toDate),
+                    description,
+                });
+
+                res.status(201).json({ message: 'Leave created', data: leave });
+            } catch (err) {
+                console.error('Create Leave Error:', err);
+                res.status(500).json({ message: 'Server error' });
+            }
+        };
+
+        // Admin Gets All Leaves OR Employee gets their own
+        const getLeaves = async (req, res) => {
+            try {
+                const { role, id: userId } = req.user;
+
+                let filter = {};
+                if (role === 'Employee') {
+                    filter = { employeeId: userId };
+                } else if (role === 'Admin' && req.query.employeeId) {
+                    filter = { employeeId: req.query.employeeId };
+                }
+
+                const leaves = await Leave.find(filter).populate('employeeId', 'employeeName');
+
+                res.status(200).json({ data: leaves });
+            } catch (err) {
+                console.error('Get Leaves Error:', err);
+                res.status(500).json({ message: 'Server error' });
+            }
+        };
+
+        // Employee Can Update Their Own Leave
+        const updateLeave = async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                if (req.user.role !== 'Employee') {
+                    return res.status(403).json({ message: 'Only employees can update their leave' });
+                }
+
+                const leave = await Leave.findById(id);
+                if (!leave || String(leave.employeeId) !== String(req.user.id)) {
+                    return res.status(404).json({ message: 'Leave not found or unauthorized' });
+                }
+
+                const updateFields = {};
+                if (req.body.fromDate) updateFields.fromDate = new Date(req.body.fromDate);
+                if (req.body.toDate) updateFields.toDate = new Date(req.body.toDate);
+                if (req.body.description) updateFields.description = req.body.description;
+
+                const updatedLeave = await Leave.findByIdAndUpdate(id, { $set: updateFields }, { new: true });
+
+                res.status(200).json({ message: 'Leave updated', data: updatedLeave });
+            } catch (err) {
+                console.error('Update Leave Error:', err);
+                res.status(500).json({ message: 'Server error' });
+            }
+        };
+
+        // Employee Can Delete Their Own Leave
+        const deleteLeave = async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                if (req.user.role !== 'Employee') {
+                    return res.status(403).json({ message: 'Only employees can delete their leave' });
+                }
+
+                const leave = await Leave.findById(id);
+                if (!leave || String(leave.employeeId) !== String(req.user.id)) {
+                    return res.status(404).json({ message: 'Leave not found or unauthorized' });
+                }
+
+                await Leave.findByIdAndDelete(id);
+                res.status(200).json({ message: 'Leave deleted' });
+            } catch (err) {
+                console.error('Delete Leave Error:', err);
+                res.status(500).json({ message: 'Server error' });
+            }
+        };
+
+        module.exports = {
+            createLeave,
+            getLeaves,
+            updateLeave,
+            deleteLeave,
+        };
+
         console.error('Delete Leave Error:', err);
         res.status(500).json({ message: 'Server error' });
     }
 };
+
+
+//  Admin can approve or reject leave
+const approveORrejectLeave = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (req.user.role !== 'Admin') {
+            return res.status(403).json({ message: 'Only admin can approve or reject leaves' });
+        }
+
+        if (!['Approved', 'Rejected'].includes(status)) {
+            return res.status(400).json({ message: 'Status must be either "Approved" or "Rejected"' });
+        }
+
+        const leave = await Leave.findById(id);
+        if (!leave) {
+            return res.status(404).json({ message: 'Leave request not found' });
+        }
+
+        leave.status = status;
+        await leave.save();
+
+        res.status(200).json({ message: `Leave ${status.toLowerCase()}`, data: leave });
+    } catch (err) {
+        console.error('Approve/Reject Leave Error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 
 module.exports = {
     createLeave,
     getLeaves,
     updateLeave,
     deleteLeave,
+    approveORrejectLeave,
 };

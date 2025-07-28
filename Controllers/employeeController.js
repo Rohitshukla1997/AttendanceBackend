@@ -1,6 +1,7 @@
 const Employee = require("../Models/employeeModel");
 const Attendance = require("../Models/attendanceModel");
 const Leave = require("../Models/leaveModel");
+const { encrypt } = require("../Utils/crypto");
 
 // CREATE (Admin only)
 exports.createEmployee = async (req, res) => {
@@ -9,9 +10,9 @@ exports.createEmployee = async (req, res) => {
             return res.status(403).json({ message: 'Access denied. Admin only.' });
         }
 
-        const { employeeName, email, phone, degination, type, joinedDate } = req.body;
+        const { employeeName, email, phone, degination, type, joinedDate, username, password } = req.body;
 
-        if (!employeeName || !email || !phone || !degination || !type || !joinedDate) {
+        if (!employeeName || !email || !phone || !degination || !type || !joinedDate || !username || !password) {
             return res.status(400).json({ message: "All fields are required" });
         }
 
@@ -22,6 +23,8 @@ exports.createEmployee = async (req, res) => {
             degination,
             type,
             joinedDate,
+            username,
+            password: encrypt(password),
             adminId: req.user.id, // take from token
         });
 
@@ -156,6 +159,8 @@ exports.updateEmployee = async (req, res) => {
         employee.degination = degination || employee.degination;
         employee.type = type || employee.type;
         employee.joinedDate = joinedDate || employee.joinedDate;
+        employee.username = req.body.username || employee.username;
+        employee.password = encrypt(req.body.password) || employee.password;
 
         await employee.save();
 

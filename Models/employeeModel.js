@@ -11,6 +11,12 @@ const employeeSchema = new mongoose.Schema(
         adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', required: true },
         firebaseToken: [{ type: String }],
         notificationAllow: { type: Boolean, default: false },
+
+        // Login fields
+        username: { type: String, required: true, unique: true },
+        password: { type: String, required: true },
+
+
     },
     { timestamps: true }
 );
