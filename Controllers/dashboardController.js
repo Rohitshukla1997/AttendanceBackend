@@ -2,7 +2,6 @@ const Admin = require("../Models/adminModel");
 const Attendance = require("../Models/attendanceModel");
 const Employee = require("../Models/employeeModel");
 
-
 // GET /api/dashboard/superadmin
 const getSuperAdminDashboard = async (req, res) => {
     try {
@@ -17,11 +16,13 @@ const getSuperAdminDashboard = async (req, res) => {
         let activeAdmins = 0;
         const adminStats = [];
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
         const newAdminsToday = await Admin.countDocuments({
-            createdAt: { $gte: today }
+            createdAt: {
+                $gte: new Date(todayStr + "T00:00:00.000+05:30"),
+                $lt: new Date(todayStr + "T23:59:59.999+05:30")
+            }
         });
 
         for (const admin of admins) {
@@ -29,7 +30,10 @@ const getSuperAdminDashboard = async (req, res) => {
 
             const newEmployeesToday = await Employee.countDocuments({
                 adminId: admin._id,
-                createdAt: { $gte: today }
+                createdAt: {
+                    $gte: new Date(todayStr + "T00:00:00.000+05:30"),
+                    $lt: new Date(todayStr + "T23:59:59.999+05:30")
+                }
             });
 
             if (admin.status === 'Active') {
@@ -60,7 +64,6 @@ const getSuperAdminDashboard = async (req, res) => {
     }
 };
 
-
 // GET /api/dashboard/admin
 const getAdminDashboard = async (req, res) => {
     try {
@@ -72,11 +75,12 @@ const getAdminDashboard = async (req, res) => {
         const employees = await Employee.find({ adminId }).lean();
         const employeeIds = employees.map(e => e._id);
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+        const todayStart = new Date(todayStr + "T00:00:00.000+05:30");
+        const todayEnd = new Date(todayStr + "T23:59:59.999+05:30");
 
         const attendances = await Attendance.find({
-            date: today,
+            date: { $gte: todayStart, $lte: todayEnd },
             employeeId: { $in: employeeIds }
         }).lean();
 
@@ -84,8 +88,8 @@ const getAdminDashboard = async (req, res) => {
         const absentToday = employeeIds.length - presentToday;
 
         const newEmployeesToday = employees.filter(e => {
-            const createdDate = new Date(e.createdAt);
-            return createdDate.toDateString() === today.toDateString();
+            const empDateStr = new Date(e.createdAt).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+            return empDateStr === todayStr;
         }).length;
 
         const employeeSummary = employees.map(emp => {
@@ -110,7 +114,7 @@ const getAdminDashboard = async (req, res) => {
     }
 };
 
-// by id admin
+// GET /api/dashboard/admin/:adminId
 const getAdminDashboardById = async (req, res) => {
     try {
         const { adminId } = req.params;
@@ -123,11 +127,12 @@ const getAdminDashboardById = async (req, res) => {
         const employees = await Employee.find({ adminId }).lean();
         const employeeIds = employees.map(e => e._id);
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+        const todayStart = new Date(todayStr + "T00:00:00.000+05:30");
+        const todayEnd = new Date(todayStr + "T23:59:59.999+05:30");
 
         const attendances = await Attendance.find({
-            date: today,
+            date: { $gte: todayStart, $lte: todayEnd },
             employeeId: { $in: employeeIds }
         }).lean();
 
@@ -135,8 +140,8 @@ const getAdminDashboardById = async (req, res) => {
         const absentToday = employeeIds.length - presentToday;
 
         const newEmployeesToday = employees.filter(e => {
-            const createdDate = new Date(e.createdAt);
-            return createdDate.toDateString() === today.toDateString();
+            const empDateStr = new Date(e.createdAt).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+            return empDateStr === todayStr;
         }).length;
 
         const employeeSummary = employees.map(emp => {
@@ -162,7 +167,6 @@ const getAdminDashboardById = async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 };
-
 
 module.exports = {
     getSuperAdminDashboard,

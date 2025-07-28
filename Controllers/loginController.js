@@ -16,7 +16,7 @@ exports.loginUser = async (req, res) => {
 
         // Try finding user in order: SuperAdmin → Admin → Employee
         user = await SuperAdmin.findOne({ username });
-        if (!user) user = await Admin.findOne({ username }); // No .lean()
+        if (!user) user = await Admin.findOne({ username });
         if (!user) user = await Employee.findOne({ username });
         if (!user) {
             return res.status(400).json({ message: "Invalid credentials" });
