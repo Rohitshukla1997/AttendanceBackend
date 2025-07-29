@@ -22,7 +22,7 @@ exports.createEmployee = async (req, res) => {
             phone,
             degination,
             type,
-            joinedDate,
+            joinedDate: new Date(joinedDate),
             username,
             password: encrypt(password),
             adminId: req.user.id, // take from token

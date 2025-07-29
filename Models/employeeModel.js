@@ -8,6 +8,7 @@ const employeeSchema = new mongoose.Schema(
         degination: { type: String, required: true },
         type: { type: String, required: true },
         joinedDate: { type: Date, required: true },
+        role: { type: String, default: "Employee" },
         adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', required: true },
         firebaseToken: [{ type: String }],
         notificationAllow: { type: Boolean, default: false },
