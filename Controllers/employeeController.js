@@ -1,7 +1,8 @@
 const Employee = require("../Models/employeeModel");
 const Attendance = require("../Models/attendanceModel");
 const Leave = require("../Models/leaveModel");
-const { encrypt } = require("../Utils/crypto");
+const { encrypt, decrypt } = require("../Utils/crypto");
+
 
 // CREATE (Admin only)
 exports.createEmployee = async (req, res) => {
@@ -12,10 +13,18 @@ exports.createEmployee = async (req, res) => {
 
         const { employeeName, email, phone, degination, type, joinedDate, username, password } = req.body;
 
+        // Validate required fields
         if (!employeeName || !email || !phone || !degination || !type || !joinedDate || !username || !password) {
             return res.status(400).json({ message: "All fields are required" });
         }
 
+        // Check if username already exists
+        const existingUser = await Employee.findOne({ username, adminId: req.user.id });
+        if (existingUser) {
+            return res.status(400).json({ message: "This username is already taken" });
+        }
+
+        // Create and save new employee
         const employee = new Employee({
             employeeName,
             email,
@@ -25,15 +34,17 @@ exports.createEmployee = async (req, res) => {
             joinedDate: new Date(joinedDate),
             username,
             password: encrypt(password),
-            adminId: req.user.id, // take from token
+            adminId: req.user.id, // from token
         });
 
         await employee.save();
+
         return res.status(201).json({ message: "Employee created successfully", employee });
     } catch (error) {
         return res.status(500).json({ message: error.message });
     }
 };
+
 
 // READ (Admin only) all empolyees
 exports.getAllEmployees = async (req, res) => {
@@ -48,7 +59,14 @@ exports.getAllEmployees = async (req, res) => {
             return res.status(404).json({ message: "No employees found" });
         }
 
-        return res.status(200).json(employees);
+        const decryptedEmployees = employees.map(emp => {
+            return {
+                ...emp.toObject(),
+                password: decrypt(emp.password)
+            }
+        });
+
+        return res.status(200).json(decryptedEmployees);
     } catch (error) {
         return res.status(500).json({ message: error.message });
     }
@@ -61,16 +79,20 @@ exports.getEmployeeProfileById = async (req, res) => {
         const adminId = req.user.id;
 
         const employee = await Employee.findOne({ _id: id, adminId })
-            .select('employeeName email phone degination adminId') // include only required fields
+            .select('employeeName email phone degination adminId username password joinedDate')
             .lean();
+
         if (!employee) {
             return res.status(404).json({ message: 'Employee not found or unauthorized' });
         }
 
+        // Decrypt password
+        employee.password = decrypt(employee.password);
+
         // Current month range
         const today = new Date();
         const year = today.getFullYear();
-        const month = today.getMonth(); // 0-indexed
+        const month = today.getMonth();
         const startDate = new Date(year, month, 1);
         const endDate = new Date(year, month + 1, 0, 23, 59, 59);
 
@@ -82,7 +104,7 @@ exports.getEmployeeProfileById = async (req, res) => {
 
         const attendanceMap = {};
         attendanceRecords.forEach(record => {
-            const dateStr = record.date.toISOString().split('T')[0]; // yyyy-mm-dd
+            const dateStr = record.date.toISOString().split('T')[0];
             attendanceMap[dateStr] = record.status;
         });
 
@@ -99,29 +121,24 @@ exports.getEmployeeProfileById = async (req, res) => {
             const from = new Date(leave.fromDate);
             const to = new Date(leave.toDate);
             for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-                const dateStr = new Date(d).toISOString().split('T')[0];
-                leaveDatesSet.add(dateStr);
+                leaveDatesSet.add(new Date(d).toISOString().split('T')[0]);
             }
         });
 
-        // Loop through each day of current month
+        // Monthly attendance summary
         const totalDays = new Date(year, month + 1, 0).getDate();
-        const summary = {
-            Present: 0,
-            Absent: 0,
-            Leave: 0,
-        };
+        const summary = { Present: 0, Absent: 0, Leave: 0 };
 
         for (let day = 1; day <= totalDays; day++) {
             const currentDate = new Date(year, month, day);
             const dateStr = currentDate.toISOString().split('T')[0];
 
             if (attendanceMap[dateStr] === 'Present') {
-                summary.Present += 1;
+                summary.Present++;
             } else if (leaveDatesSet.has(dateStr)) {
-                summary.Leave += 1;
+                summary.Leave++;
             } else {
-                summary.Absent += 1;
+                summary.Absent++;
             }
         }
 
@@ -144,23 +161,26 @@ exports.updateEmployee = async (req, res) => {
         }
 
         const { id } = req.params;
-        const { employeeName, email, phone, degination, type, joinedDate } = req.body;
+        const { employeeName, email, phone, degination, type, joinedDate, username, password } = req.body;
 
         const employee = await Employee.findById(id);
-        if (!employee) return res.status(404).json({ message: "Employee not found" });
+        if (!employee) {
+            return res.status(404).json({ message: "Employee not found" });
+        }
 
         if (String(employee.adminId) !== String(req.user.id)) {
             return res.status(403).json({ message: "Not allowed to update this employee" });
         }
 
-        employee.employeeName = employeeName || employee.employeeName;
-        employee.email = email || employee.email;
-        employee.phone = phone || employee.phone;
-        employee.degination = degination || employee.degination;
-        employee.type = type || employee.type;
-        employee.joinedDate = joinedDate || employee.joinedDate;
-        employee.username = req.body.username || employee.username;
-        employee.password = encrypt(req.body.password) || employee.password;
+        // Update only provided fields
+        if (employeeName) employee.employeeName = employeeName;
+        if (email) employee.email = email;
+        if (phone) employee.phone = phone;
+        if (degination) employee.degination = degination;
+        if (type) employee.type = type;
+        if (joinedDate) employee.joinedDate = new Date(joinedDate);
+        if (username) employee.username = username;
+        if (password) employee.password = encrypt(password); // only encrypt if provided
 
         await employee.save();
 
