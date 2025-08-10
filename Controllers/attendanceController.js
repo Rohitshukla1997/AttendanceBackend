@@ -213,12 +213,16 @@ const getRemainingTodayAttendance = async (req, res) => {
         const now = new Date();
         const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
 
-        // Find all employees under this admin with only needed fields
+        // Find all employees under this admin with selected fields
         const employees = await Employee.find({ adminId })
-            .select('employeeName email type phone degination'); //  only these fields
+            .select('employeeName email type phone degination');
 
         if (!employees.length) {
-            return res.status(404).json({ message: 'No employees found for this admin' });
+            return res.status(404).json({
+                data: [],
+                message: 'No employees found for this admin',
+                total: 0
+            });
         }
 
         const employeeIds = employees.map(emp => emp._id);
@@ -232,19 +236,22 @@ const getRemainingTodayAttendance = async (req, res) => {
         const attendedIds = attendedToday.map(a => a.employeeId.toString());
 
         // Filter out employees who are not marked yet
-        const remainingEmployees = employees.filter(emp => !attendedIds.includes(emp._id.toString()));
+        const remainingEmployees = employees.filter(
+            emp => !attendedIds.includes(emp._id.toString())
+        );
 
+        // Send response in desired format
         res.status(200).json({
-            message: 'Remaining employees for today’s attendance',
-            count: remainingEmployees.length,
-            data: remainingEmployees //  only contains employeeName, email, type, phone
+            data: remainingEmployees,
+            message: 'Remaining employees fetched successfully',
+            total: remainingEmployees.length
         });
+
     } catch (error) {
         console.error('Remaining Attendance Error:', error);
         res.status(500).json({ message: 'Server error' });
     }
 };
-
 
 
 // Make sure this is exported correctly
