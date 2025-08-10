@@ -200,10 +200,56 @@ const getMonthlyAttendance = async (req, res) => {
     }
 };
 
+// Get Remaining Today's Attendance (Employees whose today's attendance is not marked)
+const getRemainingTodayAttendance = async (req, res) => {
+    try {
+        if (req.user.role !== 'Admin') {
+            return res.status(403).json({ message: 'Only Admin can view remaining attendance' });
+        }
+
+        const adminId = req.user.id;
+
+        // Get today's UTC date at midnight
+        const now = new Date();
+        const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+
+        // Find all employees under this admin
+        const employees = await Employee.find({ adminId });
+
+        if (!employees.length) {
+            return res.status(404).json({ message: 'No employees found for this admin' });
+        }
+
+        const employeeIds = employees.map(emp => emp._id);
+
+        // Find employees who already have attendance for today
+        const attendedToday = await Attendance.find({
+            employeeId: { $in: employeeIds },
+            date: todayUTC
+        }).select('employeeId');
+
+        const attendedIds = attendedToday.map(a => a.employeeId.toString());
+
+        // Filter out employees who are not marked yet
+        const remainingEmployees = employees.filter(emp => !attendedIds.includes(emp._id.toString()));
+
+        res.status(200).json({
+            message: 'Remaining employees for today’s attendance',
+            count: remainingEmployees.length,
+            data: remainingEmployees
+        });
+    } catch (error) {
+        console.error('Remaining Attendance Error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+
 
 // Make sure this is exported correctly
 module.exports = {
     markAttendanceByAdmin,
     getMonthlyAttendance,
     editAttendanceByAdmin,
+    getRemainingTodayAttendance,
 };

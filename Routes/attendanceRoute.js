@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/authMiddleware');
-const { markAttendanceByAdmin, getMonthlyAttendance, editAttendanceByAdmin } = require('../Controllers/attendanceController');
+const { markAttendanceByAdmin, getMonthlyAttendance, editAttendanceByAdmin, getRemainingTodayAttendance } = require('../Controllers/attendanceController');
 
 // Mark attendance post
 router.post('/mark/:employeeId', authenticate, markAttendanceByAdmin);
@@ -11,5 +11,8 @@ router.patch('/edit/:employeeId', authenticate, editAttendanceByAdmin);
 
 // Get monthly attendance summary with auto absent
 router.get('/monthly/:employeeId', authenticate, getMonthlyAttendance);
+
+// Get remaining employees whose today's attendance is not marked
+router.get('/remaining-today', authenticate, getRemainingTodayAttendance);
 
 module.exports = router;
