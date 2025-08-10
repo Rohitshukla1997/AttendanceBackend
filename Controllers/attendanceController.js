@@ -213,8 +213,9 @@ const getRemainingTodayAttendance = async (req, res) => {
         const now = new Date();
         const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
 
-        // Find all employees under this admin
-        const employees = await Employee.find({ adminId });
+        // Find all employees under this admin with only needed fields
+        const employees = await Employee.find({ adminId })
+            .select('employeeName email type phone degination'); //  only these fields
 
         if (!employees.length) {
             return res.status(404).json({ message: 'No employees found for this admin' });
@@ -236,7 +237,7 @@ const getRemainingTodayAttendance = async (req, res) => {
         res.status(200).json({
             message: 'Remaining employees for today’s attendance',
             count: remainingEmployees.length,
-            data: remainingEmployees
+            data: remainingEmployees //  only contains employeeName, email, type, phone
         });
     } catch (error) {
         console.error('Remaining Attendance Error:', error);
