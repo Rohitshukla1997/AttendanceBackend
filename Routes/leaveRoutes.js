@@ -6,7 +6,7 @@ const router = express.Router();
 router.use(express.json());
 
 router.post('/create', authenticate, createLeave);
-router.get('/all', authenticate, getLeaves);
+router.get('/get', authenticate, getLeaves);
 router.patch('/update/:id', authenticate, updateLeave);
 router.delete('/delete/:id', authenticate, deleteLeave);
 
